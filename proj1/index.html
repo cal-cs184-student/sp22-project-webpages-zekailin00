@@ -1,7 +1,429 @@
-<html>
-	<head>
-	</head>
-	<body>
-		Project 1 here
-	</body>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<style>
+  body {
+    padding: 100px;
+    width: 1000px;
+    margin: auto;
+    text-align: left;
+    font-weight: 300;
+    font-family: 'Open Sans', sans-serif;
+    color: #121212;
+  }
+  code {
+    color: red
+  }
+  h1, h2, h3, h4 {
+    font-family: 'Source Sans Pro', sans-serif;
+  }
+  h3 {
+    color: blue
+  }
+</style>
+<title>CS 184 Rasterizer</title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link href="https://fonts.googleapis.com/css?family=Open+Sans|Source+Sans+Pro" rel="stylesheet">
+<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+
+
+<body>
+
+<h1 align="middle">CS 184: Computer Graphics and Imaging, Spring 2022</h1>
+<h1 align="middle">Project 1: Rasterizer</h1>
+<h2 align="middle">Zekai Lin, CS184-3035848516(SID)</h2>
+
+<br><br>
+
+<div>
+
+<h2 align="middle">Overview</h2>
+<p>Give a high-level overview of what you implemented in this project. Think about what you've built as a whole. Share your thoughts on what interesting things you've learned from completing the project.</p>
+
+<p>
+  In this project, I implemented triangle rasterization, transform, supersampling, barycentric interpolation, mipmap level sampling, pixel sampling.
+  I build a 2D image rasterizer that supports rasterizing an image from svg source with a texture. 
+  Antialising is supported so the edges with sharp color transitions have less jaggies. 
+  Using mipmap and bilinear pixel sampling, the image can still look good even minified or magnified. 
+  2D transform is also supported, which allows us to create cubeman with difference actions. 
+
+</p>
+
+<p>
+  The project helps me learn more about rasterizing images and how 2D signal processing helps antialising.
+  I also learned about algorithms for interpolate properties for screen pixels within a given triangle. It's really cool.
+</p>
+
+<h2 align="middle">Section I: Rasterization</h2>
+
+<h3 align="middle">Part 1: Rasterizing single-color triangles</h3>
+
+<p>
+  To rasterize a triangle on screen given three points and a color, four steps need to be taken:
+</p>
+
+<ol>
+  <li>Compute the normal for each line</li>
+  <li>Find the bounding box of the triangle</li>
+  <li>Test each pixel in the bounding box if it is inside the triangle</li>
+  <li>Fill the color in the pixel if passing the test </li>
+</ol>
+
+<h4>Compute the normal for each line</h4>
+<p>
+  Given three points \(p_0, p_1, p_2\), we can compute three normal.
+  Normals are always computed in the following way: \(v_i = p_{i+1} - p_i\) gives the vector that describes line \(i\). 
+  \(n_i = [-v_i.y,v_i.x]\) gives the normal for line i. When \(i=2\), \(i+1\) warps around and becomes 0. 
+  When points are given in a counterclockwise order, normals are always pointing inside of the triangle. 
+</p>
+
+<h4>Find the bounding box of the triangle</h4>
+<p>
+  Bounding box is the smallest rectangular box that encloses the triangle, which can be obtained from the maximum and minimum x,y coordinates of the three points.
+  Using the coordinate specified in the assignment, the maximum x and y components gives the bottom right point,
+  and the minimum x and y components \(+1\) gives the top left point of the bounding rectangle. \(+1\) allows the bounding box to include the triangle point itself.
+  The pixels inside the bounding box needs to be tested if they are inside triangle.
+</p>
+
+<h4>Test each pixel in the bounding box if it is inside the triangle</h4>
+<p>
+  For each pixel, another three vector, \(p_0^-, p_1^-, p_2^-\), has to be calculated using \(p_i^-=c_j -  p_i\), where \(i\) is the label for the vector,
+  \(c\) is the vector coordinates of the center of pixels, and \(j\) is the index of the pixels inside the bounding box. The three vectors are used in point-in-triangle test along with the three normals.
+  The test shows that if three dot products \(n_i * p_i^->= 0 \) for \(i = 0, 1, 2\), then the pixel point is inside the triangle. This works for  \(p_0, p_1, p_2\) given in a counterclockwise order.
+  If the three points are given clockwise, all dot products will be non-positive if the pixel is inside triangle. Therefore, the actual check is:</p>
+   <code>
+    (dot(p0,n0)>=0 && dot(p1, n1)>=0 && dot(p2, n2)>=0) || (dot(p0,n0)<=0 && dot(p1, n1)<=0 && dot(p2, n2)<=0)
+  </code> 
+
+<h4> Fill the color in the pixel if passing the test </h4>
+<p>Once we know if the pixel is inside the triangle, we can fill the given color in the pixel. </p>
+
+<h4> Complexity</h4>
+<p> 
+  The bounding box computed from the max and min x,y coordinates, <code>x_min, x_max, y_min, y_max</code>, ensures that only pixels inside this box is checked. 
+  The bounding box is the minimal rectangle that encloses that triangle. The double for loop for the algorithm is  <code> for(int i = x_min; i < x_max; i++)</code> and <code>
+    for(int j = y_min; j < y_max; j++)</code>
+</p>
+<div align="middle">
+  <img src="images/task1.png" align="middle" width="800px"/>
+  <figcaption align="middle">Task 1 does not have supersampling, so we can see discontinuous pixels shown in the pixel inspector.</figcaption>
+</div>
+
+<h3 align="middle">Part 2: Antialiasing triangles</h3>
+
+<h4>Implementation Details: changes to <code>sample_buffer</code> </h4>
+
+<p>
+  <code>sample_buffer</code> is expanded by a factor of <code> sample_rate</code> to support supersampling. This also means that the parameter of its <code>resize</code> method also has to change respectively.
+  Also, in <code> resolve_to_framebuffer</code>, when transfering color data to the framebuffer, we need to take the average of all supersampled data points. We first get the <code> supersample = sqrt(this->sample_rate)</code>,
+  and then we can identify the supersample * supersample array entries on which we need to take the avarage. Given framebuffer entry [x, y],
+  the entries in sample_buffer are <code>[(y*supersample + sj) * width * supersample + (x*supersample + si)]</code> for sj and si ranging from 0 to supersample
+</p>
+
+<h4>Implementation Details: supersampling rasterization </h4>
+
+<p>
+  For <code> RasterizerImp::rasterize_triangle</code>, because sample_buffer is subdivided into finer grids. 
+  We need to multiply <code> x_min, x_max, y_min, y_max</code> mentioned above by <code>sqrt(sample_rate)</code> to get the correct indices for the bounding box.
+  We also need to recalculate the center coordinates of new supersampled pixels. The coordinates are used to tests if those supersampled pixels are inside the triangles,
+  so we need to divide the index values by <code>sqrt(sample_rate)</code> to convert the expanded sample_buffer index coordinate to the original triangle coordinate. The new  
+  \(p_0^-, p_1^-, p_2^-\) vectors are then obtained for point-in-triangle test. For example, <code> Vector2D p0((i+0.5) / supersample - x0, (j+0.5) / supersample - y0),</code>
+  Because we converted the supersampled pixel center values from the sample_buffer index coordinate to the original triangle coordinate, the code for the test is exactly the same. 
+</p>
+
+<h4>Implementation Details: fixing <code>RasterizerImp::rasterize_point</code> </h4>
+
+<p> Because sample_buffer is expanded by a factor of <code>sample_rate</code>, without implementing antialiasing for points, we still need to run <code>fill_pixel</code> sample_rate times to fill all supersampled pixels </p>
+
+<h4>How antialiasing is done?</h4>
+
+<p> 
+  Antialiasing is done through averaging supersampled pixels. Each original pixel is subdivided into more supersampled pixels, 
+  and point-to-triangle test is performed on each supersampled pixel. 
+  Because sampling frequency is higher, we are able to capture features in higher frequency range.
+  The averaging processing not only downsamples the pixels, but also smooths out the transition between very shape color differences. 
+  This transition suggests that aliasing in frequency space is reduces. 
+</p>
+
+<h4>Why is supersampling useful?</h4>
+
+<p>It is useful because without supersampling, places with sharp color transition appear to have jaggies. 
+  Supersampling extracts higher frequency features before they are aliased into lower frequency range,
+  which implies that the jaggies(aliased artifacts) is less serious. 
+  The result is that the rasterized images, in places with sharp color transition, tend to be much smoother and visually look much better. 
+</p>
+
+<h4>Results in the images</h4>
+
+The top left image has supersampling rate of 1, and it shows jaggies and discontinuous pixels in the pixel inspector. 
+The remaining shows the effect of supersampling that smooths out the transition from red triangle to white background.
+A higher supersampling rate has a much smoother transition.
+This is because supersampled pixels from a original screen pixel can have either a red or a white value. 
+The final value in the screen pixel is the average of the them, so new colors between the two extremes(red, white) 
+are created in the transition. This removes the artifacts of discontinuous pixels and jaggies. 
+A higher supersampling rate means there are more colors that can be chosen between the two extreme values, 
+so the transition looks much better.
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/task2_1.png" align="middle" width="400px"/>
+        <figcaption align="middle">Supersampling rate 1.</figcaption>
+      </td>
+      <td>
+        <img src="images/task2_2.png" align="middle" width="400px"/>
+        <figcaption align="middle">Supersampling rate 4.</figcaption>
+      </td>
+    </tr>
+    <br>
+    <tr>
+      <td>
+        <img src="images/task2_3.png" align="middle" width="400px"/>
+        <figcaption align="middle">Supersampling rate 9.</figcaption>
+      </td>
+      <td>
+        <img src="images/task2_4.png" align="middle" width="400px"/>
+        <figcaption align="middle">Supersampling rate 16.</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<h3 align="middle">Part 3: Transforms</h3>
+<p>
+  Cubeman is waving, and his head is also tilted to the right a bit. New colors are added to create a color gradient effect.
+  His left arm is lifted up and his right arm is put down. To do this, rotations are applied to both upper and low arms. 
+  Transforms are also applied to adjust the relative distance between the arms and the body. 
+</p>
+
+<div align="middle">
+  <img src="images/task3.png" align="middle" width="600px"/>
+  <figcaption align="middle">New robot</figcaption>
+</div>
+
+
+<h2 align="middle">Section II: Sampling</h2>
+
+<h3 align="middle">Part 4: Barycentric coordinates</h3>
+
+<p>
+  Barycentric coordinates linearly interpolate pixel positions within a triangle.
+  Because all information we have about a triangle is the properties and locations of each vertices,
+  for pixels inside the triangle, we need to interpolate the properties from the three vertices, which is done by barycentric coordinates.
+  The \(\alpha, \beta, \gamma\) values indicate how much fraction of properties from each vertices can be mixed into the interpolated position.
+  Given a vertex, if the interpolated position is further away from the vertex, its corresponding fraction is smaller. 
+  For example, a point slightly below blue vertex in the image below is still very blue because it is very far away from other two colors but close to blue.
+  As a mathematical definition, given a triangle with vertices A, B, C, and point P, 
+  the coordinate \(\alpha\) for A is the ratio of the projection of vector BP to the projection of vector BA on the normal of line BC
+</p>
+<div align="middle">
+  <img src="images/task4_1.png" align="middle" width="600px"/>
+  <figcaption align="middle">barycentric coordinates </figcaption>
+  <img src="images/task4_2.png" align="middle" width="600px"/>
+  <figcaption align="middle">png screenshot of svg/basic/test7.svg</figcaption>
+</div>
+
+
+<h3 align="middle">Part 5: "Pixel sampling" for texture mapping</h3>
+<h4>pixel sampling: nearest and bilinear</h4>
+
+<p>
+  We use pixel sampling to map texture to screen pixels. Given both the xy and uv coordinates of three triangle vertices, we can interpolate the uv coordinates of pixels inside the triangle.
+  The interpolation is using the same linear barycentric coordinate approach. This interpolation allows us to sample texel at the newly interpolated uv coordinates in texture uv coordinates. 
+</p>
+
+<p>
+  After obtaining the uv coordinates from barycentric linear interpolation, we need to sample texels in texture space. There are two methods, nearest sampling and bilinear sampling. 
+  Nearest sampling select the texel closest to the uv coordinates. Assume the center of the texel is used to calculate the distance to uv sampling coordinates, and uv coordinate ranges from 0.0 tp 1.0,
+  we can use <code>mip.get_texel((int)(uv.x * mip.width), (int)(uv.y * mip.height))</code> to get the index for the closest texel. Another method is bilinear sampling, which uses three lerp functions
+  to linearly mix four closest texels to a single texel value. 
+</p>
+
+<p>
+  Bilinear interpolation takes more time to compute, but it is better in case the rendered texture is magnified. This is because when texture is magnified, uv sampling points are more dense than available texel indices.
+  This causes interpolated texels appear to be jaggies due to insufficient resolution of texture. To fix this, bilinear interpolation can be used to smooth out the color transition. 
+  When the ratio of texel density to sampling density is roughly the same, using nearest sampling is more efficient.  
+</p>
+
+<h4>how you implemented</h4>
+
+First is to get the uv coordinate using barycentric interpolation. The approach is exactly the same as color interpolation shown in task 4, but the property becomes uv coordinates instead of colors. 
+<code> Vector2D uv(alpha * u0 + beta * u1 + gamma * u2, alpha * v0 + beta * v1 + gamma * v2);</code>. The uv coordinate is then used to get samples from either <code>sample_nearest()</code> or <code> sample_bilinear()</code>.
+For nearest sampling, we can use the texel coordinates <code>(int)(uv.x * mip.width) </code> and <code>(int)(uv.y * mip.height)</code> to get texels. It first adjusts the uv coordinates to the actual texture size, 
+then floor operation is applied to get the indices. For bilinear sampling, we first need to test if the sampling points are at the boundary, because bilinear sampling can cause array index out of bound error at boundaries,
+so we need to return the value directly instead of using bilinear sampling. After that, we need to decide which four points are closest to the given sampling coordinate. The way it is done is that all four cases are listed out. 
+The four cases are uv is closest to top right, bottom left, top left, or bottom right texel of the four. All four cases use that same lerp functions with slightly different indices. 
+Lerp function is written in a lambda function <code> auto lerp = [](float frac, Color c0, Color c1){return c0 + frac * (c1 + (-1) * c0);};</code>, 
+and applied three times to average out the value of four texels based on relative distances.
+
+<h4> relative differences in images below</h4>
+
+<p>
+  The image of the university seal is zoomed in to further lower down the density of rendered texels. We can see that when using nearest sampling, the white stripes in golden background look really jaggy. 
+  When supersampling rate of 16 is used with nearest sampling, the jaggies are still there, even though, on pixel inspector, the jaggies on jaggies themselves seems smoother. 
+  However, when bilinear sampling is applied, with supersampling rate of 1, the image seems very smooth and all jaggies are gone. 
+  With bilinear sampling turned on, increasing supersampling rate does not increase a lot of the image quality.
+</p>
+
+<p>
+  There will be a large difference between the nearest and bilinear sampling when rendered texture is magnified, 
+  meaning the relative density of sampling uv coordinates is much larger than density of texels. 
+  In this case, the jaggies do not come from the low sampling rate of screen pixel rasterization, but from insufficient texture pixels. 
+  The jaggies in texture image is magnified and sampled into screen pixels, so increasing supersampling rate does not help solve the problem. 
+  The way to solve this problem is to using bilinear sampling that smooths out the color transition in texture images themselves. 
+  Bilinear sampling uses averaging to create new intermediate colors between the two extreme colors (in this case, white and golden) in color transition.
+  This also means bilinear sampling filters out high frequency features in texture images before sampling into screen pixels. 
+  Nearest sampling cannot create new transition colors in textures, so it cannot help even with high supersampling rate. 
+</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/task5_1.png" align="middle" width="400px"/>
+        <figcaption align="middle">Nearest, supersample rate 1.</figcaption>
+      </td>
+      <td>
+        <img src="images/task5_2.png" align="middle" width="400px"/>
+        <figcaption align="middle">Nearest, supersample rate 16.</figcaption>
+      </td>
+    </tr>
+    <br>
+    <tr>
+      <td>
+        <img src="images/task5_3.png" align="middle" width="400px"/>
+        <figcaption align="middle">Bilinear, supersample rate 1.</figcaption>
+      </td>
+      <td>
+        <img src="images/task5_4.png" align="middle" width="400px"/>
+        <figcaption align="middle">Bilinear, supersample rate 16.</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<h3 align="middle">Part 6: "Level sampling" with mipmaps for texture mapping</h3>
+
+<h4> explain level sampling</h4>
+
+When rendered texture is minified, the texel density is much greater than uv sampling density, 
+so for each sampling point, there can be a lot of texels contributing to it. 
+However, nearest or bilinear sampling methods can only average up to 8 texels, which is much less than all texels contributing to a screen pixel in case of minification. 
+Therefore, we need to use mipmap that recursively applies low-pass filtering and downsampling to the original texture file. 
+This method recursively filters out high frequency features to prevent aliasing and generates texture versions with different texel density. 
+Every time we need to sample a texel value for a screen pixel, we choose the texture version whose texel density matches pixel density. 
+The chosen version of texture is more likely to have the highest feature frequency less than the nyquist frequency of screen sampling, which prevents aliasing and jaggies on screen.  
+
+<h4> how you implemented</h4>
+
+<p>
+  First, <code>Texture::get_level()</code> is implement to produce the correct mipmap level using formula \(log_2(max(||\frac{\Delta v_{uv}}{\Delta x}||, ||\frac{\Delta v_{uv}}{\Delta y}||))\).
+  Before returning the value, it has to be clamp within range [0, mipmap.size()-1.1]. 1.1 is used here because in trilinear sampling, another mipmap level is the computed one plus one. 
+  1.1 prevents array out of bound error by restricting the computed mipmap level to one less than the highest array index, so trilinear sampling never errors. 
+</p>
+
+<p>
+  In addition to the interpolated uv coordinate of the screen pixel, we also need to compute the uv coordinates of pixels above and to the right side of the screen pixel. 
+  The method is also barycentric interpolation, but the given x,y values are each increased by one for dx and dy. 
+  So we can get coordinates <code> p_uv</code>, <code> p_dx_uv</code>, <code> p_dy_uv</code>. 
+  The three coordinates along with the two sampling modes are encapsulated in a parameter struct and send to <code>tex.sample()</code> method. 
+</p>
+
+<p>
+  <code>Texture::sample()</code> is a dispatcher method for 6 different types of sampling methods. For zero mipmap filter method, mipmap level 0 is used.
+  For nearest mipmap filter method, <code> level = round(get_level(sp))</code> is used to round the continuous level to a closest integer. For linear filter method, 
+  the two closest levels and the fraction are computed. Pixel sampling method is called twice to compute a color for each level. 
+  Then another linear interpolation is used to get color <code>(1 - frac) * c1 + frac * c2;</code>, where frac is the fractional offset from low integer mipmap level to floating point level. 
+  After mipmap levels filter method is selected, pixel filtering method is selected and either <code>sample_nearest()</code> or <code>sample_bilinear()</code> is called.
+  The algorithm inside the two methods stay the same.
+</p>
+
+<h4> tradeoffs between speed, memory usage, and antialiasing power</h4>
+
+<p> 
+  For speed, supersample size 1, zero mipmap level and nearest pixel filter is always fastest; however, images produced from this method look good only when there are not many sharp color transitions,
+  and the texel density and screen pixel density are relatively the same. Trilinear filtering with supersampling rate of 16 is the slowest, but it allows to smooth out sharp color transition during rasterization on screen pixel(supersampling),
+  and supports magnification(linear pixel sampling) and minification (linear mipmap). Depending on the property of rendered texture and image color distribution, some methods can be abandoned to speed up the process. 
+  For example, knowing images do not have high frequency features, such as line or edges, we probably do not need high supersampling rate, which can speed up the process.  
+</p>
+
+<p>
+  For memory usage, a high supersampling rate can use much more memory space. Enabling mipmap can cost an extra one third of texture memory. However, again, depedning on image properties, some algorithms might not be necessary. 
+  For example, mipmap is only useful when we know that the rendered texture will have texel density much higher than pixel density. If we know for sure that it is not the case, we do not have to use mipmap and can save one third of texture memory. 
+</p>
+
+<p>
+  All three types of sampling remove aliasing artifacts from different perspectives. When the texel and pixel density match, and rasterizing from a source with sharp color transitions, such as svg files where edges are all mathematically defined and exact,
+  we need to increase the supersampling rate to remove high frequency feature and create additional transition colors for screen pixels. However, if we are rasterizing from an image file, depending on if the texture is magnified or minified,
+  we need to use bilinear pixel sampling to create transition colors in texture, or mipmap sampling to filter out high frequency features and downsample the texture to prevent aliasing. 
+  If we know the type of source we are rasterizing from, we do not have to enable all three types of sampling methods.  
+</p>
+
+<div align="middle">
+    <img src="images/task6_1.png" align="middle" width="400px"/>
+    <figcaption align="middle">original texture.</figcaption>
+</div>
+
+<h4>When texture is minified, enabling mipmap levels improves image quality more. </h4>
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/task6_s1.png" align="middle" width="400px"/>
+        <figcaption align="middle">zero level, nearest pixel.</figcaption>
+      </td>
+      <td>
+        <img src="images/task6_s2.png" align="middle" width="400px"/>
+        <figcaption align="middle">zero level, bilinear pixel.</figcaption>
+      </td>
+    </tr>
+    <br>
+    <tr>
+      <td>
+        <img src="images/task6_s3.png" align="middle" width="400px"/>
+        <figcaption align="middle">nearest level, nearest pixel.</figcaption>
+      </td>
+      <td>
+        <img src="images/task6_s4.png" align="middle" width="400px"/>
+        <figcaption align="middle">nearest level, bilinear pixel.</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+<h4>When texture is magnified, enabling  bilinear pixel sampling improves image quality more. </h4>
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/task6_l1.png" align="middle" width="400px"/>
+        <figcaption align="middle">zero level, nearest pixel.</figcaption>
+      </td>
+      <td>
+        <img src="images/task6_l2.png" align="middle" width="400px"/>
+        <figcaption align="middle">zero level, bilinear pixel.</figcaption>
+      </td>x
+    </tr>
+    <br>
+    <tr>
+      <td>
+        <img src="images/task6_l3.png" align="middle" width="400px"/>
+        <figcaption align="middle">nearest level, nearest pixel.</figcaption>
+      </td>
+      <td>
+        <img src="images/task6_l4.png" align="middle" width="400px"/>
+        <figcaption align="middle">nearest level, bilinear pixel.</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<h2 align="middle">Section III: Art Competition</h2>
+<p>If you are not participating in the optional art competition, don't worry about this section!</p>
+
+<h3 align="middle">Part 7: Draw something interesting!</h3>
+
+</body>
 </html>
