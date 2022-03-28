@@ -1,7 +1,596 @@
-<html>
-	<head>
-	</head>
-	<body>
-		Project 3-1 here
-	</body>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<style>  
+    div.padded {  
+      padding-top: 0px;  
+      padding-right: 100px;  
+      padding-bottom: 0.25in;  
+      padding-left: 100px;  
+    }  
+    code {
+        color:red;
+    }
+  </style> 
+<title>Your Name  |  CS 184</title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rel="stylesheet" type="text/css" href="style.css" media="screen" />
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+<br />
+<h1 align="middle">Assignment 3: PathTracer</h1>
+    <h2 align="middle">Zekai Lin</h2>
+
+    <div class="padded">
+
+    <h2 align="middle">Part 1: Ray Generation and Intersection</h2>
+
+
+    <div align="middle">
+        <table style="width=100%">
+          <tr>
+            <td>
+              <img src="images/p1_1.png" align="middle" width="400px" />
+              <figcaption align="middle">Normal shading 1.</figcaption>
+            </td>
+            <td>
+              <img src="images/p1_2.png" align="middle" width="400px" />
+              <figcaption align="middle">Normal shading 2.</figcaption>
+            </td>
+          </tr>
+          <br>
+          <tr>
+            <td>
+              <img src="images/p1_3.png" align="middle" width="400px" />
+              <figcaption align="middle">Normal shading 3.</figcaption>
+            </td>
+            <td>
+              <img src="images/p1_4.png" align="middle" width="400px" />
+              <figcaption align="middle">Normal shading 4.</figcaption>
+            </td>
+          </tr>
+        </table>
+    </div>
+
+
+    <h3>Ray Generation</h3>
+
+    <p>
+        To generate ray we need to transform the pixel coordinates in normalized image space to the sensor coordinates in camera space.
+        Given the normalized coordinates, the sensor coordinates x_ and y_ can be calculated by first shifting the points to the center 
+        in sensor plane, and then multiplying them with the tangent of the field of view.  
+        Then we get the sensor coordinates in camera space <code>(x_, y_, -1)</code>, 
+        which is also the direction that the ray points to in camera space. 
+        Then, we need to transform the ray to world space and normalize it. The position of the ray is the camera position.
+        We also need to set the <code>max_t</code> and <code>min_t</code> to the far and near clipping planes. 
+    </p>
+
+
+    <h3>Generate Pixels</h3>
+
+    <p>
+        To get rays for updating pixels, we need to get <code>ns_aa</code> number of samples within the pixel randomly. 
+        This is done by <code>girdSampler</code>. Then we need to normalized the pixel coordinates and get rays using the 
+        ray generation method described above. The radiance estimates of <code>ns_aa</code> samples are averaged and assigned to framebuffer. 
+    </p>
+
+    <h3>Sphere Intersection</h3>
+
+    <p>
+        To test ray intersection with a sphere, we solve the time t of intersection for the equation \((o + td - c)^2 - R^2 = 0\), where o us tge position of the ray,
+        d is the direction of the ray, c is the center of sphere, and R is the radius of the sphere. The equation above can be expand to a 
+        classical quadratic equation with coefficients a, b, and c. The resulting time can be calculated using formula \(t = \frac{-b \pm \sqrt{b^2-4ac}}{2a}\).
+        The smaller one of the two is selected if existed and real, and if the selected one is within the clipping range of the ray, 
+        we get an intersection. The intersection variable is updated with the normal <code>(r.o + t * r.d - o).unit()</code>, bsdf, and other properties. 
+    </p>
+
+    <h3>Triangle Intersection</h3>
+
+    <p>
+        Triangle intersection test is done by Moller Trumbore algorithm shown in the figure below. O is the position of the ray.
+        D is the direction of the ray. \(P_1, P_2, P_3\) are the position of the vertices of the triangle mesh. 
+        \(b_1, b_2\) are the barycentric coordinates for vertices 1 and 2 of the triangle mesh. 
+        If time is within the clipping range of the ray, and barycentric coordinates have the correct range, we know that 
+        ray intersects with the mesh. 
+    </p>
+
+    <div align="middle">
+        <table style="width=100%">
+            <tr>
+              <td>
+                <img src="images/algo.jpg" align="middle" width="500px" />
+                <figcaption align="middle">Moller Trumbore Algorithm.</figcaption>
+              </td>
+              <td>
+                <img src="images/algo2.png" align="middle" width="300px" />
+                <figcaption align="middle">Code Implementation.</figcaption>
+              </td>
+            </tr>
+          </table>
+    </div>
+
+    <h2 align="middle"> Part 2: Bounding Volume Hierarchy</h3>
+
+    <h3>
+        BVH construction
+    </h3>
+    <p>
+        BVH accelerates the ray intersection process. At each <code>BVHNode</code>, a bounding box is constructed for all input primitives,
+        and the axis on which primitives are splitted is randomly chosen. 
+        The splitting point is the centroid of the selected axis of the current bounding box.
+        For example, when the chosen axis is x, <code>center = bbox.centroid().x;</code> gets the splitting point. <code>std::partition</code> 
+        is used to split the vector container and get the midpoint of the split. If the centroid of the primitive is less than the centroid of 
+        the axis, the primitive is moved to the left half of the container, as shown in the code below: 
+        
+        <pre>
+            <code>mid = std::partition(start, end, 
+                    [center](Primitive * prim){return prim->get_bbox().centroid().x < center;});</code>
+        </pre>
+
+        If the mid point equals the start or end of the vector container, we need to shift its value by 1 to make sure there is no infinite recursion. 
+        <code>construct_bvh</code> is called twice again recursively with the left half or the right half of the container as the input.
+        The recursion goes on until size of the input container is less than <code>max_leaf_size</code>. 
+    </p>
+    <p>
+        The reason to select random axis to split the primitives is that, in some cases where there is a huge mesh right next to a group of very dense tiny meshes,
+        choosing the longest axis as the splitting axis does not work, because the axis indicated by the large mesh does not optimize the split for tiny dense meshes. 
+        In worst case (CBdragon, where the mesh of box is large, mesh of dragon is dense and small), one child node always contains one primitive in each split, 
+        which can lead to segfault. 
+        Therefore, we need randomness to break the worst cases described above.
+    </p>
+
+    <div align="middle">
+        <table>
+            <tr>
+                <td>
+                <img src="images/p2_4.png" align="middle" width="400px" />
+                <figcaption align="middle">CBlucy.</figcaption>
+                </td>
+                <td>
+                <img src="images/p2_3.png" align="middle" width="400px" />
+                <figcaption align="middle">CBdragon.</figcaption>
+                </td>
+            </tr>
+            </table>
+    </div>
+
+
+    <h3>
+        BVH Acceleration Analysis
+    </h3>
+    <p>
+        Shown in the table below, Using BVH can lead to significant improvement in time. The most obvious example is maxplanck.
+        It has 50801 mesh, and when BVH is on, it only takes 0.06 seconds to render, but when BVH is off, it takes 231 seconds to render. 
+        Because cow only has 4856 meshes, it is relative easy to render it without BVH, but it still takes about 22 seconds. 
+        When number of meshes is large enough, it becomes impossible to render it. This suggests that BVH can accelerate the process.
+        One interesting observation is that when BVH is on, 
+        the time for rendering is roughly the same for all four cases in the table. The time for rendering lucy and dragon is slightly lower, 
+        which is probably due to the fact that objects in Cornell Box seem to be placed further away from the camera, 
+        so there are less rays hitting the largest bounding box. 
+
+    </p>
+    <div align="middle">
+        <table style="width:50%">
+            <tr>
+              <th>Name</th>
+              <th>With BVH</th>
+              <th>Without BVH</th>
+              <th>#primitives</th>
+            </tr>
+            <tr>
+              <td>Cow</td>
+              <td>0.0530s</td>
+              <td>22.0693s</td>
+              <td>5856</td>
+            </tr>
+            <tr>
+              <td>maxplanck</td>
+              <td>0.0677s</td>
+              <td>231.3094s</td>
+              <td>50801</td>
+            </tr>
+            <tr>
+                <td>CBdragon</td>
+                <td>0.0455s</td>
+                <td>---</td>
+                <td>100012</td>
+              </tr>
+              <tr>
+                <td>CBlucy</td>
+                <td>0.0346s</td>
+                <td>---</td>
+                <td>133796</td>
+              </tr>
+          </table>
+    </div>
+    
+    <h2 align="middle"> Part 3: Direct Illumination</h3>
+
+    <h3>
+        Hemisphere Sampling
+    </h3>
+
+    <p>
+        For each sample, create a ray pointing out from the current intersection point with <code>Ray direct_ray(hit_p, o2w * sample);</code>, 
+        where sample is a vector randomly and uniformly sampled from <code>hemisphereSampler</code> with probability \(\frac{1}{2\pi}\).
+        If we hit a mesh and its emission is not zero, we add the reflected radiance to the total estimation with equation
+        <code> estimator += emission * isect.bsdf->f(w_out, -sample) * dot(w2o * isect.n, sample);</code>. At the end, 
+        the total radiance is divided by the number of samples and normalized with the sampling probability to get the average.
+    </p>
+
+    <p>
+        <code>direct_ray.min_t</code> is set to <code>EPS_F</code> to make sure ray does not hit itself. 
+    </p>
+
+    <h3>
+        Importance Sampling
+    </h3>
+
+    <p>
+        For each plane light source, <code>ns_area_light</code> number of emissions are created from <code>(*light)->sample_L()</code>,
+        along with its distance to light source, sampling probability, and direction vector. For each sample, a ray is created 
+        to test if the ray going out from current intersection point is blocked by any object. 
+        The ray has its <code>direct_ray.max_t</code> roughly equal to the distance to light. If there is no intersection, 
+        the emission from light source is not blocked by any object, and we can add the reflected radiance to the total estimation 
+        with equation <code> estimator += emission * isect.bsdf->f(w_out, - w2o * sample) * dot(isect.n, sample) / pdf;</code>. 
+        When loop has gone through all light sources <code>ns_area_light</code> number of times,
+        the total estimation is divided by <code>ns_area_light</code> to get the average. 
+    </p>
+
+    <p>
+        When the light source is a point, because the light source sampling is deterministic, 
+        one intersection test is enough to know if the light is blocked by any object in between,
+        we can simplify the sampling process and remove the inner loop of light sampling. 
+    </p>
+    <h3>
+        Comparison
+    </h3>
+
+    <p>
+        When the light tracing parameters are the same, hemisphere sampling has more noise than light importance sampling. 
+        The images rendered by light importance sampling have shaper shadows compared to hemisphere sampling, 
+        and they are also generally brighter.
+        This is because in hemisphere sampling, rays going out from the initial intersection points are uniformly sampled,
+        there are less rays directly pointing to light sources. However, in light importance sampling, all rays always point to light sources.
+        Similar to hemisphere sampling, importance sampling also has light/shadow gradient on rendered spheres, 
+        because the light source is a surface, so the rays in this case is randomly sampled.
+        Some rays are blocked by the curvature of the sphere, which creates the gradient effect. 
+        Another thing that is worth to mention is that for objects not placed in the cornell box, 
+        only black image is rendered when hemisphere sampling is used. This is probably caused by 
+        small area of light source in those files, as mentioned on Piazza. 
+    </p>
+
+    <div align="middle">
+        <table style="width=100%">
+            <tr>
+            <td>
+                <img src="images/part3_1.png" align="middle" width="300px" />
+                <figcaption align="middle">Importance Sampling 1.</figcaption>
+            </td>
+            <td>
+                <img src="images/part3_5.png" align="middle" width="400px" />
+                <figcaption align="middle">Importance Sampling 2.</figcaption>
+            </td>
+            </tr>
+            <br>
+            <tr>
+            <td>
+                <img src="images/part3_2.png" align="middle" width="300px" />
+                <figcaption align="middle">Hemisphere Sampling 1.</figcaption>
+            </td>
+            <td>
+                <img src="images/part3_6.png" align="middle" width="400px" />
+                <figcaption align="middle">Hemisphere Sampling 2.</figcaption>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <h3>
+        Noise Levels in Soft Shadows
+    </h3>
+
+    <p>
+        As the number of light rays increases, the shadow is less spread out, and the transition from shadow to light is more smooth. 
+        This also means that the variance of light at each pixel goes down and the sample mean goes closer to the true mean.
+        This is because the majority of light rays come from a plane source, and light rays are randomly sampled from the plane source. 
+        As the number of light rays increases, the average becomes a better estimate of how much light from the plane source is blocked. 
+        More transition colors are created through estimation at the boundary of the shadow. 
+    </p>
+    
+    <div align="middle">
+        <table style="width=100%">
+            <tr>
+            <td>
+                <img src="images/part3_7.png" align="middle" width="200px" />
+                <figcaption align="middle">CBbunny -s 1 -l 1.</figcaption>
+            </td>
+            <td>
+                <img src="images/part3_8.png" align="middle" width="200px" />
+                <figcaption align="middle">CBbunny -s 1 -l 4.</figcaption>
+            </td>
+            <td>
+                <img src="images/part3_9.png" align="middle" width="200px" />
+                <figcaption align="middle">CBbunny -s 1 -l 16.</figcaption>
+            </td>
+            <td>
+                <img src="images/part3_10.png" align="middle" width="200px" />
+                <figcaption align="middle">CBbunny -s 1 -l 64.</figcaption>
+            </td>
+            </tr>
+            <br>
+            <tr>
+            <td>
+                <img src="images/part3_11.png" align="middle" width="200px" />
+                <figcaption align="middle">dragon -s 1 -l 1.</figcaption>
+            </td>
+            <td>
+                <img src="images/part3_12.png" align="middle" width="200px" />
+                <figcaption align="middle">dragon -s 1 -l 4.</figcaption>
+            </td>
+            <td>
+                <img src="images/part3_13.png" align="middle" width="200px" />
+                <figcaption align="middle">dragon -s 1 -l 16.</figcaption>
+            </td>
+            <td>
+                <img src="images/part3_14.png" align="middle" width="200px" />
+                <figcaption align="middle">dragon -s 1 -l 64.</figcaption>
+            </td>
+            </tr>
+        </table>
+    </div>
+
+
+
+    <h2 align="middle"> Part 4: Global Illumination</h2>
+
+    <h3>
+        Indirect Light function
+    </h3>
+
+
+
+    <p>
+        In <code>at_least_one_bounce_radiance()</code>, a ray is created with <code>r_in(hit_p, o2w * w_in)</code>,
+        where <code>hit_p</code> is the position of the current intersection point, and <code>w_in</code> is the 
+        outward direction vector sampled from <code>isect.bsdf->sample_f()</code>. 
+        If the current ray depth has not reached the max ray depth, 
+        we get one bound radiance at the current intersection point using the function <code>one_bound_radiance()</code>.
+        Then, if the new ray intersects with a new surface, and Russian Roulette is not terminated, 
+        the function <code> at_least_one_bounce_radiance()</code> is called again recursively with the new ray as the input. 
+        Radiance is added up using formula
+        <code> L_out += at_least_one_bounce_radiance(r_in, insect_in) * bsdf * dot(w2o * isect.n, w_in) / pdf / CONT_PROB; </code>.
+    </p>
+
+    <p>
+        Every time <code>at_least_one_bounce_radiance</code> is called,
+        the depth is decremented by one, and recursion terminates when depth reaches 0 or by Russian Roulette. 
+        Russian Roulette continuation probability is set to 0.7.  
+        Total radiance displayed is the result returned from <code>at_least_one_bounce_radiance</code> plus <code>zero_bound_radiance</code>
+    </p>
+
+    <div align="middle">
+        <table style="width=100%">
+            <tr>
+            <td>
+                <img src="images/part4_1.png" align="middle" width="300px" />
+                <figcaption align="middle">CBspheres_lambertian.</figcaption>
+            </td>
+            <td>
+                <img src="images/part4_3.png" align="middle" width="300px" />
+                <figcaption align="middle">dragon.</figcaption>
+            </td>
+            <td>
+                <img src="images/part4_4.png" align="middle" width="300px" />
+                <figcaption align="middle">bunny.</figcaption>
+            </td>
+            </tr>
+        </table>
+    </div>
+
+
+    <h3>
+        Comparison between Indirect and Direct Illumination
+    </h3>
+
+    <p>
+        Direct Illumination includes zeroth and first bounces. It is the same as the image from the direct illumination part.
+        In the image of indirect illumination, the first two bounds are not there, but other bounds are.
+        The direct illumination has higher brightness, and it is clear that if a surface does not face toward the light source,
+        it is complete black. In the image of indirect illumination, it is overall dark,
+        but everywhere except the light source in the scene has some light. 
+        Also, in the indirect illumination image, the colors from the red and blue walls are also reflected to the spheres, 
+        so the spheres have a little bit red and blue colors,
+        which is not the case in the image of direct illumination. 
+    </p>
+
+    <div align="middle">
+        <table style="width=100%">
+            <tr>
+            <td>
+                <img src="images/part4_direct.png" align="middle" width="300px" />
+                <figcaption align="middle">Only Direct.</figcaption>
+            </td>
+            <td>
+                <img src="images/part4_indirect.png" align="middle" width="300px" />
+                <figcaption align="middle">Only Indirect.</figcaption>
+            </td>
+            </tr>
+        </table>
+    </div>
+
+    <h3>
+        Maximum Ray Depth Comparison
+    </h3>
+
+    <p>
+        The first three images have the largest difference. 
+        When the light bounces at least three times, the scene is overall bright and natural.
+        As maximum depth increases further more, 
+        we can see the colors from the two walls are reflected more to other places in the scene,
+        However, the difference between depth=4 and depth=100 is not very big compared to the first three images. 
+    </p>
+
+    <div align="middle">
+        <table style="width=100%">
+            <tr>
+            <td>
+                <img src="images/part4_5.png" align="middle" width="300px" />
+                <figcaption align="middle">CBbunny -m 0.</figcaption>
+            </td>
+            <td>
+                <img src="images/part4_6.png" align="middle" width="300px" />
+                <figcaption align="middle">CBbunny -m 1.</figcaption>
+            </td>
+            <td>
+                <img src="images/part4_7.png" align="middle" width="300px" />
+                <figcaption align="middle">CBbunny -m 2.</figcaption>
+            </td>
+            </tr>
+        </table>
+    </div>
+
+    <div align="middle">
+        <table style="width=100%">
+            <tr>
+            <td>
+                <img src="images/part4_8.png" align="middle" width="300px" />
+                <figcaption align="middle">CBbunny -m 3.</figcaption>
+            </td>
+            <td>
+                <img src="images/part4_9.png" align="middle" width="300px" />
+                <figcaption align="middle">CBbunny -m 100.</figcaption>
+            </td>
+            </tr>
+        </table>
+    </div>
+
+
+    <h3>
+        Samples per Pixel Comparison
+    </h3>
+
+    <p>
+        When samples per pixel is low, there is a lot of noises. 
+        For example, when s=1, 2, or 3, the pixels of the bunny have a lot of random red and blue colors.
+        This is because there are not enough samples to get the correct average values.
+        As samples per pixel increase, we see the noise is getting lower. 
+        One good advantage of using Monte Carlo to estimate the scene is that
+        even when sample per pixel is low, the expectance is still the real image. 
+    </p>
+
+    <div align="middle">
+        <table style="width=100%">
+            <tr>
+            <td>
+                <img src="images/part4_10.png" align="middle" width="300px" />
+                <figcaption align="middle">CBbunny -s 1.</figcaption>
+            </td>
+            <td>
+                <img src="images/part4_11.png" align="middle" width="300px" />
+                <figcaption align="middle">CBbunny -s 2.</figcaption>
+            </td>
+            <td>
+                <img src="images/part4_12.png" align="middle" width="300px" />
+                <figcaption align="middle">CBbunny -s 4.</figcaption>
+            </td>
+            <td>
+                <img src="images/part4_13.png" align="middle" width="300px" />
+                <figcaption align="middle">CBbunny -s 8.</figcaption>
+            </td>
+            </tr>
+        </table>
+    </div>
+
+
+    <div align="middle">
+        <table style="width=100%">
+            <tr>
+            <td>
+                <img src="images/part4_14.png" align="middle" width="300px" />
+                <figcaption align="middle">CBbunny -s 16.</figcaption>
+            </td>
+            <td>
+                <img src="images/part4_15.png" align="middle" width="300px" />
+                <figcaption align="middle">CBbunny -s 64.</figcaption>
+            </td>
+            <td>
+                <img src="images/part4_16.png" align="middle" width="300px" />
+                <figcaption align="middle">CBbunny -s 1024.</figcaption>
+            </td>
+            </tr>
+        </table>
+    </div>
+
+    <h2 align="middle"> Part 5: Adaptive Sampling</h2>
+
+    <h3>
+        Adaptive Sampling Implementation
+    </h3>
+
+    <p>
+        In <code>raytrace_pixel()</code>, for each sampling iteration, we get the illuminance using method <code> estimator.illum()</code>, 
+        where <code>estimator</code> is the value returned from <code>est_radiance_global_illumination()</code>. 
+        Then we compute \(s_1 = \sum_{k=1}^nx_k\) and \(s_2 = \sum_{k=1}^nx_k^2\),
+         where \(x_k\) is the illuminance at \(k^{th}\) sample. 
+         We use the following formulas to determine whether to terminate every <code>samplesPerBatch</code> iteration: 
+
+
+    </p>
+           
+    <p align="middle">
+        \(\mu = \frac{s_1}{n}\)
+    </p>
+    <p align="middle">
+        \(\sigma^2 = \frac{1}{n-1} (s_2 - \frac{s_1^2}{n})\)
+    </p>
+    <p align="middle">
+        \(I = 1.96 \frac{\sigma}{\sqrt{n}}\)
+    </p>
+    <p align="middle">
+        \(I \leq maxTolerance * \mu\)
+    </p>
+
+    <p>
+        <code>MAX_TOLERANCE</code> is set to 0.05 here. At every <code>samplesPerBatch</code> iteration, the test above is performed.
+        If \(1.96 \frac{\sigma}{\sqrt{n}} \leq maxTolerance * \mu\), we break the sampling loop and average the current estimation by  
+        the current number of iteration. The average radiance estimation is added to <code>sampleBuffer</code>. 
+        The current iteration number is also recorded in <code>sampleCountBuffer</code>. 
+    </p>
+
+
+    <div align="middle">
+        <table style="width=100%">
+          <tr>
+            <td>
+              <img src="images/part5_1.png" align="middle" width="400px" />
+              <figcaption align="middle">CBbunny.</figcaption>
+            </td>
+            <td>
+              <img src="images/part5_1_rate.png" align="middle" width="400px" />
+              <figcaption align="middle">CBbunny Rate.</figcaption>
+            </td>
+          </tr>
+          <br>
+          <tr>
+            <td>
+              <img src="images/part5_2.png" align="middle" width="400px" />
+              <figcaption align="middle">CBspheres_lambertian.</figcaption>
+            </td>
+            <td>
+              <img src="images/part5_2_rate.png" align="middle" width="400px" />
+              <figcaption align="middle">CBspheres_lambertian Rate.</figcaption>
+            </td>
+          </tr>
+        </table>
+    </div>
+
+
+</div>
+</body>
 </html>
+
+
+
+
