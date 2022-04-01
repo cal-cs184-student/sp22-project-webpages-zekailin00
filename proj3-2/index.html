@@ -1,7 +1,220 @@
-<html>
-	<head>
-	</head>
-	<body>
-		Project 3-2 here
-	</body>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<style>  
+    div.padded {  
+      padding-top: 0px;  
+      padding-right: 100px;  
+      padding-bottom: 0.25in;  
+      padding-left: 100px;  
+    }  
+  </style> 
+<title>Zekai Lin |  CS 184</title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rel="stylesheet" type="text/css" href="style.css" media="screen" />
+</head>
+<body>
+<br />
+<h1 align="middle">Assignment 3: PathTracer</h1>
+    <h2 align="middle">Zekai Lin </h2>
+
+    <div class="padded">
+
+    <h2 align="middle">Part 1: Mirror and Glass Materials</h2>
+
+    <p>
+        On the mirror material, the light from the the walls is reflected on the surface.
+        Because light needs to go to the surface first and bounce back, it needs at least two bounces,
+        which is why the mirror ball is mostly black until the bounce 2 image. 
+        We do see light source reflection in bounce 1 image because light comes from bounce 0, 
+        and bounce 1 only gives the reflection of light source.
+        When bounce is sufficiently large, we can see the surrounding from the mirror ball, 
+        because it has the effect of perfectly reflecting light coming from the surrounding.
+        This perfect reflection allows us to see walls and the other ball on the mirror ball.
+    </p>
+
+    <p>
+        On the glass material, it has properties of both reflection and refraction,
+        but reflection is much weaker than refraction.
+        As mentioned above, the glass ball it mostly black in bounce 1, except light source. 
+        In bounce 2, we can see the reflection of the surrounding; however, 
+        it is still very black because reflection is only a minor property for glass material, 
+        and glass mostly bounces light through refraction. 
+        Because refraction needs to have light first enter the material, 
+        then bounces to another side inside the material, and then finally bounce out of the material,
+        we can see that the glass ball is mostly black until the bounce 3 image. 
+        In bounce 3 image, the light has bounced 3 times, so we can see it. 
+        Because refraction is must brighter than reflection in glass material,
+        we cannot really see the dark reflection from bounce 2 image any more. 
+        When bounce is sufficiently large, we can see light is bent on the glass material. 
+        The blue wall on the right side is displayed on the left side on the glass ball surface.
+    </p>
+
+    <p>
+        For both materials, images bounce 4, 5, and 100 are roughly the same, 
+        the light have pretty much gone through all parts of the scene. 
+        It only makes the scene overall brighter,
+         and red and blue colors from the wall are well mixed to the scene. 
+    </p>
+
+    <div align="middle">
+        <table style="width=100%">
+            <tr>
+            <td>
+                <img src="images/p1_1.png" align="middle" width="300px" />
+                <figcaption align="middle">bounce 0.</figcaption>
+            </td>
+            <td>
+                <img src="images/p1_2.png" align="middle" width="300px" />
+                <figcaption align="middle">bounce 1.</figcaption>
+            </td>
+            <td>
+                <img src="images/p1_3.png" align="middle" width="300px" />
+                <figcaption align="middle">bounce 2.</figcaption>
+            </td>
+            </tr>
+        </table>
+    </div>
+
+    <div align="middle">
+        <table style="width=100%">
+            <tr>
+            <td>
+                <img src="images/p1_4.png" align="middle" width="300px" />
+                <figcaption align="middle">bounce 3.</figcaption>
+            </td>
+            <td>
+                <img src="images/p1_5.png" align="middle" width="300px" />
+                <figcaption align="middle">bounce 4.</figcaption>
+            </td>
+            <td>
+                <img src="images/p1_6.png" align="middle" width="300px" />
+                <figcaption align="middle">bounce 5.</figcaption>
+            </td>
+            </tr>
+        </table>
+    </div>
+
+    <div align="middle">
+        <table style="width=100%">
+            <tr>
+            <td>
+                <img src="images/p1_7.png" align="middle" width="300px" />
+                <figcaption align="middle">bounce 100.</figcaption>
+            </td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="padded">
+
+    <h2 align="middle">Part 2: Microfacet Material</h2>
+
+    <h3>
+        Alpha Values
+    </h3>
+
+    <p>
+        As alpha value goes down, the material becomes more shiny,
+        and the colors from the surrounding is reflected from the material.
+        In alpha = 0.005 and alpha = 0.05, we see that the gold material is overall shiny,
+        and has red and blue colors from the walls reflected on the surface.
+    </p>
+
+    <p>
+        In alpha = 0.25, the surface is more diffusive. And colors from the wall are less obvious. 
+        The color of the surface becomes more yellow, compared to the two cases above 
+        that the materials tend to reflect the color of the surrounding. 
+        In alpha = 0.5, it become very diffusive, and it tends to show its own yellow color. 
+    </p>
+
+
+    <div align="middle">
+        <table style="width=100%">
+          <tr>
+            <td>
+              <img src="images/p2_11.png" align="middle" width="400px" />
+              <figcaption align="middle">Dragon 0.005.</figcaption>
+            </td>
+            <td>
+              <img src="images/p2_12.png" align="middle" width="400px" />
+              <figcaption align="middle">Dragon 0.05.</figcaption>
+            </td>
+          </tr>
+          <br>
+          <tr>
+            <td>
+              <img src="images/p2_13.png" align="middle" width="400px" />
+              <figcaption align="middle">Dragon 0.25.</figcaption>
+            </td>
+            <td>
+              <img src="images/p2_14.png" align="middle" width="400px" />
+              <figcaption align="middle">Dragon 0.5.</figcaption>
+            </td>
+          </tr>
+        </table>
+    </div>
+
+    <h3>
+        Sampling Method
+    </h3>
+
+    <p>
+        When the sampling rate is fixed, 
+        the bunny in the image of hemisphere sampling is much noisier than in importance sampling.
+        This is because hemisphere sampling samples lights uniformly, 
+        so it is less likely that the light sampled is useful for the given surface normal. 
+        That's why the bunny looks more noisy and has random black dots. 
+        Importance sampling the lights according to Beckmann distribution gives us samples that minimize the noise, 
+        and useful parts in normal distribution function (NDF) are more likely to be sampled.
+        So the image produced from importance sampling has less noises on the bunny. 
+    </p>
+
+    <div align="middle">
+        <table style="width=100%">
+          <tr>
+            <td>
+              <img src="images/p2_21.png" align="middle" width="400px" />
+              <figcaption align="middle">Hemisphere Sampling.</figcaption>
+            </td>
+            <td>
+              <img src="images/p2_22.png" align="middle" width="400px" />
+              <figcaption align="middle">Importance Sampling.</figcaption>
+            </td>
+          </tr>
+        </table>
+    </div>
+
+    <h3>
+        Nickel Material
+    </h3>
+
+    <p>
+        alpha: 0.5
+    </p>
+    <p>
+        eta: 1.9874 1.92 1.7675  
+    </p>
+    <p>
+        k: 4.0011 3.61 3.055
+    </p>
+
+
+    <div align="middle">
+        <table style="width=100%">
+          <tr>
+            <td>
+              <img src="images/p2_31.png" align="middle" width="400px" />
+              <figcaption align="middle">Nickel.</figcaption>
+            </td>
+          </tr>
+        </table>
+    </div>
+
+</div>
+</body>
 </html>
+
+
+
+
