@@ -1,7 +1,478 @@
-<html>
-	<head>
-	</head>
-	<body>
-		Project 4 here
-	</body>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<style>
+  body {
+    padding: 100px;
+    width: 1000px;
+    margin: auto;
+    text-align: left;
+    font-weight: 300;
+    font-family: 'Open Sans', sans-serif;
+    color: #121212;
+  }
+  h1, h2, h3, h4 {
+    font-family: 'Source Sans Pro', sans-serif;
+  }
+</style>
+<title>CS 184 Mesh Editor</title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link href="https://fonts.googleapis.com/css?family=Open+Sans|Source+Sans+Pro" rel="stylesheet">
+</head>
+
+
+<body>
+
+<h1 align="middle">CS 184: Computer Graphics and Imaging, Spring 2022</h1>
+<h1 align="middle">Project 4: Cloth Simulator</h1>
+<h2 align="middle">Zekai Lin, 3035848516</h2>
+
+<br><br>
+
+<div>
+
+<h2 align="middle">Overview</h2>
+<p>
+  In this project, I built cloth simulation based on springs and masses. 
+  It supports self-collision and collision with other objects.
+  Shaders can also be used in the render process. 
+</p>
+<h2 align="middle">Part I: Masses and springs</h2>
+
+<p>
+  From the figures, we can see the wireframe and three types of constraints applied to the point masses. 
+  Structural constrains connect a point mass and the point mass to its left as well as the point mass above it.
+  Shearing constraints connect a point mass and the point mass to its diagonal upper left as well as the point mass to its diagonal upper right.
+  Bending constraints connect a point mass and the point mass two away to its left as well as the point mass two above it.
+</p>
+
+<div align="middle">
+  <table style="width=100%">
+      <tr>
+      <td>
+          <img src="img/p1_3.png" align="middle" width="500px" />
+          <figcaption align="middle">Pinned2.</figcaption>
+      </td>
+      <td>
+          <img src="img/p1_4.png" align="middle" width="500px" />
+          <figcaption align="middle">All constraints.</figcaption>
+      </td>
+      </tr>
+  </table>
+</div>
+
+
+<div align="middle">
+  <table style="width=100%">
+      <tr>
+      <td>
+          <img src="img/p1_1.png" align="middle" width="500px" />
+          <figcaption align="middle">Only shear constraints.</figcaption>
+      </td>
+      <td>
+          <img src="img/p1_2.png" align="middle" width="500px" />
+          <figcaption align="middle">Without shear constraints.</figcaption>
+      </td>
+      </tr>
+  </table>
+</div>
+
+<br>
+<h2 align="middle">Part II: Simulation via numerical integration</h2>
+
+<h3 >Compare Differences</h2>
+
+<p>
+  As ks increases, the force created bt the springs increases given the same displacement distance.
+  As shown in the figures below, with a very small ks, the cloth tend to be stretched down more. 
+  If ks is very large, the cloth surface tend to be more flat, and it is less pulled down by gravity.  
+</p>
+
+<p>
+  Density also reflects how much force gravity can create on the cloth. As density increases, 
+  more force is applied to the cloth, and it is pulled down by gravity more. 
+  The images below show an opposite effect than changing ks. 
+</p>
+
+<p>
+  Damping can be interpreted as air friction or how much force is removed during the motion. 
+  When damping is very large, the falling speed is very slow, 
+  but when the cloth falls down to the lowest position, it does not oscillate to the opposite direction.
+  When damping is very small, it falls down quickly and oscillates back and forth, which converges to
+  its rest state very slowly. The two figures below for damping are not in their rest states.  
+</p>
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+    <td>
+        <img src="img/p2_3.png" align="middle" width="500px" />
+        <figcaption align="middle">Low ks.</figcaption>
+    </td>
+    <td>
+        <img src="img/p2_5.png" align="middle" width="500px" />
+        <figcaption align="middle">High ks.</figcaption>
+    </td>
+    </tr>
+  </table>
+</div>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+    <td>
+        <img src="img/p2_6.png" align="middle" width="500px" />
+        <figcaption align="middle">Low density.</figcaption>
+    </td>
+    <td>
+        <img src="img/p2_7.png" align="middle" width="500px" />
+        <figcaption align="middle">High density.</figcaption>
+    </td>
+    </tr>
+  </table>
+</div>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+    <td>
+        <img src="img/p2_9.png" align="middle" width="500px" />
+        <figcaption align="middle">Low damping (not in rest state).</figcaption>
+    </td>
+    <td>
+        <img src="img/p2_8.png" align="middle" width="500px" />
+        <figcaption align="middle">High damping (not in rest state).</figcaption>
+    </td>
+    </tr>
+  </table>
+</div>
+
+<h3>
+  Pinned4 images
+</h3>
+  
+<div align="middle">
+<table style="width=100%">
+  <tr>
+  <td>
+      <img src="img/p2_1.png" align="middle" width="500px" />
+      <figcaption align="middle">Pinned4 normals.</figcaption>
+  </td>
+  <td>
+      <img src="img/p2_2.png" align="middle" width="500px" />
+      <figcaption align="middle">Pinned4 wireframe.</figcaption>
+  </td>
+  </tr>
+</table>
+</div>
+
+
+<br>
+<h2 align="middle">Part III: Handling collisions with other objects</h2>
+
+<h3>
+  ks Differences 
+</h3>
+
+<p>
+  ks reflects the magnitude of force created by springs given the same displacement distance. 
+  In the three images below, we can see that as ks increases, the spring force increases,
+  so the cloth is less stretched down by gravity. 
+  We can also interpret that the cloth material becomes less stretchy and it can retain is shape more. 
+</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+    <td>
+        <img src="img/p3_2.png" align="middle" width="300px" />
+        <figcaption align="middle">500 ks.</figcaption>
+    </td>
+    <td>
+      <img src="img/p3_1.png" align="middle" width="300px" />
+      <figcaption align="middle">5000 ks.</figcaption>
+    </td>
+    <td>
+        <img src="img/p3_3.png" align="middle" width="300px" />
+        <figcaption align="middle">50000 ks.</figcaption>
+    </td>
+    </tr>
+  </table>
+</div>
+
+<h3>
+  More cloth images
+</h3>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+    <td>
+        <img src="img/p3_4.png" align="middle" width="500px" />
+        <figcaption align="middle">Colored wireframe.</figcaption>
+    </td>
+    <td>
+        <img src="img/p3_5.png" align="middle" width="500px" />
+        <figcaption align="middle">Diffusive shading.</figcaption>
+    </td>
+    </tr>
+  </table>
+</div>
+  
+<br>
+<h2 align="middle">Part VI: Handling self-collisions</h2>
+
+<h3>
+  Collision Process
+</h3>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+    <td>
+        <img src="img/p4_1.png" align="middle" width="500px" />
+        <figcaption align="middle">State 1.</figcaption>
+    </td>
+    <td>
+        <img src="img/p4_2.png" align="middle" width="500px" />
+        <figcaption align="middle">State 2.</figcaption>
+    </td>
+    </tr>
+  </table>
+</div>
+
+  
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+    <td>
+        <img src="img/p4_3.png" align="middle" width="500px" />
+        <figcaption align="middle">State 3.</figcaption>
+    </td>
+    <td>
+        <img src="img/p4_4.png" align="middle" width="500px" />
+        <figcaption align="middle">State 4.</figcaption>
+    </td>
+    </tr>
+  </table>
+</div>
+  
+<h3>
+  Differences in ks and Density
+</h3>
+
+<p>
+  The falling speed is roughly the same. However, as density increases, 
+  the cloth becomes less bouncy and smooth as it falls on itself and ground.
+  When ks is small, the cloth surface is more smooth and it is less likely to be bent easily.
+  For ks, the situation is opposite. When ks is large, the cloth surface looks more smooth,
+  and it tends to spread out more in its final rest state. As ks becomes smaller, cloth can be
+  bent more easily and is less likely to spread out in the final rest state.
+
+</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+    <td>
+        <img src="img/p4_5.png" align="middle" width="500px" />
+        <figcaption align="middle">High density.</figcaption>
+    </td>
+    <td>
+        <img src="img/p4_6.png" align="middle" width="500px" />
+        <figcaption align="middle">Low density.</figcaption>
+    </td>
+    </tr>
+  </table>
+</div>
+  
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+    <td>
+        <img src="img/p4_7.png" align="middle" width="500px" />
+        <figcaption align="middle">High ks.</figcaption>
+    </td>
+    <td>
+        <img src="img/p4_8.png" align="middle" width="500px" />
+        <figcaption align="middle">Low ks.</figcaption>
+    </td>
+    </tr>
+  </table>
+</div>
+  
+
+<br>
+<h2 align="middle">Part V: Shaders</h2>
+
+<h3>
+  Shaders
+</h3>
+
+<p>
+  Shaders are small programs run by GPU cores at specific steps within the graphics pipeline. 
+  In this project, vertex shader processes the incoming data at each vertex. 
+  The vertex position, normal, and tangent are transform into world space. The output data is 
+  then sent to the other parts in the graphics pipeline, such as geometry processing and rasterization. 
+  After rasterization, the fragment shader takes in required information at each pixel location to calculate the color to render. 
+  By injecting code into the graphics pipeline through shader programs, we can create difference effects in rendering.
+</p>
+
+<h3>
+  Blinn-Phong Shader
+</h3>
+
+<p>
+  Blinn-Phong lighting model is composed of ambient light, diffuse light, and specular light. 
+  Ambient lighting is the same everywhere on the object, which gives a basic color for dark places on the object. 
+  Diffuse lighting depends on the direction of the light, but the light going out in all direction is the same.
+  Specular lighting approximates reflection, so the lighting is stronger near the reflection direction. 
+  Adding all three lightings up, we get the shading that approximates real lighting effect. 
+</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+    <td>
+        <img src="img/p5_1.png" align="middle" width="500px" />
+        <figcaption align="middle">Ambient.</figcaption>
+    </td>
+    <td>
+        <img src="img/p5_2.png" align="middle" width="500px" />
+        <figcaption align="middle">Diffuse.</figcaption>
+    </td>
+    </tr>
+  </table>
+</div>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="img/p5_3.png" align="middle" width="500px" />
+        <figcaption align="middle">Specular.</figcaption>
+      </td>
+      <td>
+        <img src="img/p5_4.png" align="middle" width="500px" />
+        <figcaption align="middle">Blinn-Phong.</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<h3>
+  Texture Mapping Shader
+</h3>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="img/p5_5.png" align="middle" width="500px" />
+        <figcaption align="middle">Custom texture.</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+
+
+<h3>
+  Bump and Displacement Shader
+</h3>
+
+<p>
+  Looking far away from the objects, overall the two methods produce roughly the same shader effects. 
+  When looking closely, bump shader only changes the lighting color on the texture and the geometry remains the same, 
+  but displacement shader also changes the position of the vertices. 
+  As a result, displacement shaders make the geometry more realistic and match the lighting effect. 
+  New geometry is created to match the lighting and normal changes, so when inspecting closely, 
+  we can see very realistic rendered effects. 
+</p>
+
+<p>
+  Increasing mesh coarseness can have a much greater impact on the displacement shader than the bump shader.
+  For the bump shader, because positions of vertices are not changed in the program, 
+  increasing mesh coarseness only makes the sphere surface less smooth. For the displacement shader,
+  more mesh vertices can produce finer details on the new geometry. As mesh becomes more coarse in displacement shading,
+  there would be not enough vertices to create the displacement that matches the changes in normal, 
+  which makes the shader much less realistic. The comparison is shown in the zoomed-in images, 
+  where displacement shading looks much worse as mesh density goes down to 16. 
+</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+    <td>
+        <img src="img/p5_8.png" align="middle" width="300px" />
+        <figcaption align="middle">Bump cloth 16.</figcaption>
+    </td>
+    <td>
+      <img src="img/p5_9.png" align="middle" width="300px" />
+      <figcaption align="middle">Bump sphere 16.</figcaption>
+    </td>
+    <td>
+        <img src="img/p5_10.png" align="middle" width="300px" />
+        <figcaption align="middle">Displacement sphere 16.</figcaption>
+    </td>
+    </tr>
+  </table>
+</div>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+    <td>
+        <img src="img/p5_11.png" align="middle" width="300px" />
+        <figcaption align="middle">Bump cloth 128.</figcaption>
+    </td>
+    <td>
+      <img src="img/p5_12.png" align="middle" width="300px" />
+      <figcaption align="middle">Bump sphere 128.</figcaption>
+    </td>
+    <td>
+        <img src="img/p5_13.png" align="middle" width="300px" />
+        <figcaption align="middle">Displacement sphere 128.</figcaption>
+    </td>
+    </tr>
+  </table>
+</div>
+
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+    <td>
+        <img src="img/p5_14.png" align="middle" width="500px" />
+        <figcaption align="middle">Displacement sphere 128 (zoomed in).</figcaption>
+    </td>
+    <td>
+      <img src="img/p5_15.png" align="middle" width="500px" />
+      <figcaption align="middle">Displacement sphere 16 (zoomed in).</figcaption>
+    </td>
+    </tr>
+  </table>
+</div>
+
+
+<h3>
+  Mirror Shader
+</h3>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="img/p5_6.png" align="middle" width="500px" />
+        <figcaption align="middle">Cloth.</figcaption>
+      </td>
+      <td>
+        <img src="img/p5_7.png" align="middle" width="500px" />
+        <figcaption align="middle">Sphere.</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+
+</body>
 </html>
